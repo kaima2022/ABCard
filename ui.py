@@ -117,9 +117,11 @@ class LogCapture(logging.Handler):
 def init_logging():
     handler = LogCapture()
     handler.setLevel(logging.DEBUG)
+    handler._is_log_capture = True  # 标记
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
-    root.handlers = [h for h in root.handlers if not isinstance(h, LogCapture)]
+    # 按标记移除旧的 LogCapture (class 名/属性)
+    root.handlers = [h for h in root.handlers if not getattr(h, '_is_log_capture', False)]
     root.addHandler(handler)
 
 
