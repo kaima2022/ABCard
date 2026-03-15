@@ -491,13 +491,8 @@ if account_source == "选择已有账号":
         st.warning("暂无已注册的账号，请先选择「新注册」")
 
 elif account_source == "手动输入 Token":
-    tk_col1, tk_col2 = st.columns(2)
-    with tk_col1:
-        cred_access_token = st.text_input("access_token", placeholder="eyJhbGciOi...", type="password", key="w_manual_at")
-        cred_email = st.text_input("邮箱 (可选)", placeholder="user@example.com", key="w_manual_email")
-    with tk_col2:
-        cred_session_token = st.text_input("session_token (可选)", placeholder="可为空，仅 API 模式需要", type="password", key="w_manual_st")
-        cred_device_id = st.text_input("device_id (可选)", placeholder="留空自动生成", key="w_manual_did")
+    cred_access_token = st.text_input("access_token", placeholder="eyJhbGciOi...", type="password", key="w_manual_at")
+    cred_email = st.text_input("邮箱 (可选)", placeholder="user@example.com", key="w_manual_email")
 
 # ── 注册模式下显示邮箱配置 ──
 if do_register:
@@ -505,7 +500,7 @@ if do_register:
         _mc1, _mc2, _mc3 = st.columns(3)
         mail_worker = _mc1.text_input("Worker API", placeholder="https://mail-api.example.com", key="w_mail_worker_reg")
         mail_domain = _mc2.text_input("邮箱域名", placeholder="example.com", key="w_mail_domain_reg")
-        mail_token = _mc3.text_input("邮箱 Token", placeholder="your-mail-token", type="password", key="w_mail_token_reg")
+        mail_token = _mc3.text_input("密码", placeholder="your-mail-token", type="password", key="w_mail_token_reg")
 
 
 # 默认值 (非开发者模式下不显示这些设置)
@@ -574,7 +569,7 @@ if dev_mode:
             mail_worker = st.text_input("邮箱 Worker", placeholder="https://mail-api.example.com", key="w_mail_worker_dev")
             adv_mc1, adv_mc2 = st.columns(2)
             mail_domain = adv_mc1.text_input("邮箱域名", placeholder="example.com", key="w_mail_domain_dev")
-            mail_token = adv_mc2.text_input("邮箱 Token", placeholder="your-mail-token", type="password", key="w_mail_token_dev")
+            mail_token = adv_mc2.text_input("密码", placeholder="your-mail-token", type="password", key="w_mail_token_dev")
         if plan_type == "team":
             adv_tc1, adv_tc2, adv_tc3 = st.columns(3)
             workspace_name = adv_tc1.text_input("Workspace", value="MyWorkspace")
@@ -891,6 +886,11 @@ def _run_flow_thread(rd, cs):
 
 
 with tab_run:
+    # 额度提示
+    if do_register:
+        st.info("新注册模式: 成功消耗 **2** 次额度，失败消耗 **1** 次")
+    else:
+        st.info("已有账号模式: 消耗 **1** 次额度")
     btn_col1, btn_col2 = st.columns([4, 1])
     with btn_col1:
         run_btn = st.button("开始执行", disabled=st.session_state.running or not steps_list,
@@ -908,7 +908,7 @@ with tab_run:
             if not mail_domain:
                 _errors.append("请填写邮箱域名")
             if not mail_token:
-                _errors.append("请填写邮箱 Token")
+                _errors.append("请填写密码")
         elif use_existing_creds and do_checkout:
             if not cred_access_token:
                 _errors.append("请提供 access_token")

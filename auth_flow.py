@@ -504,15 +504,37 @@ class AuthFlow:
         self, session_token: str, access_token: str, device_id: str
     ) -> AuthResult:
         """使用已有凭证（跳过注册）"""
-        self.result.session_token = session_token
         self.result.access_token = access_token
         self.result.device_id = device_id or str(uuid.uuid4())
+
+        # 如果没有 session_token, 尝试通过 access_token 获取
+        if not session_token and access_token:
+            logger.info("未提供 session_token, 尝试通过 access_token 获取...")
+            try:
+                self.session.cookies.set("oai-did", self.result.device_id, domain=".chatgpt.com")
+                headers = self._common_headers("https://chatgpt.com/")
+                headers["Authorization"] = f"Bearer {access_token}"
+                resp = self.session.get(
+                    "https://chatgpt.com/api/auth/session",
+                    headers=headers,
+                    timeout=30,
+                )
+                session_token = self.session.cookies.get("__Secure-next-auth.session-token", "")
+                if session_token:
+                    logger.info("通过 access_token 获取 session_token 成功")
+                else:
+                    logger.warning("未能获取 session_token, 可能需要手动提供")
+            except Exception as e:
+                logger.warning(f"获取 session_token 失败: {e}")
+
+        self.result.session_token = session_token
         # 设置 cookie
-        self.session.cookies.set(
-            "__Secure-next-auth.session-token",
-            session_token,
-            domain=".chatgpt.com",
-        )
+        if session_token:
+            self.session.cookies.set(
+                "__Secure-next-auth.session-token",
+                session_token,
+                domain=".chatgpt.com",
+            )
         self.session.cookies.set("oai-did", self.result.device_id, domain=".chatgpt.com")
         logger.info("使用已有凭证初始化完成")
         return self.result

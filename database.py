@@ -48,21 +48,27 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS executions (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                code        TEXT NOT NULL,
-                email       TEXT,
-                plan_type   TEXT,
-                status      TEXT NOT NULL DEFAULT 'pending',
-                error_msg   TEXT,
-                result_json TEXT,
-                created_at  TEXT NOT NULL,
-                updated_at  TEXT,
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                code            TEXT NOT NULL,
+                email           TEXT,
+                plan_type       TEXT,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                reserved_amount INTEGER NOT NULL DEFAULT 1,
+                error_msg       TEXT,
+                result_json     TEXT,
+                created_at      TEXT NOT NULL,
+                updated_at      TEXT,
                 FOREIGN KEY (code) REFERENCES codes(code)
             );
 
             CREATE INDEX IF NOT EXISTS idx_executions_code ON executions(code);
             CREATE INDEX IF NOT EXISTS idx_executions_status ON executions(status);
         """)
+        # 自动迁移: 添加 reserved_amount 列 (如果不存在)
+        try:
+            conn.execute("SELECT reserved_amount FROM executions LIMIT 1")
+        except Exception:
+            conn.execute("ALTER TABLE executions ADD COLUMN reserved_amount INTEGER NOT NULL DEFAULT 1")
 
 
 # ── 初始化 ──

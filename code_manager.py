@@ -82,9 +82,9 @@ def reserve_use(code: str, plan_type: str = "", amount: int = 1) -> Optional[int
             (amount, code),
         )
         cursor = conn.execute(
-            "INSERT INTO executions (code, plan_type, status, error_msg, created_at, updated_at) "
+            "INSERT INTO executions (code, plan_type, status, reserved_amount, created_at, updated_at) "
             "VALUES (?, ?, 'pending', ?, ?, ?)",
-            (code, plan_type, str(amount), now, now),
+            (code, plan_type, amount, now, now),
         )
         return cursor.lastrowid
 
@@ -133,9 +133,8 @@ def complete_use(execution_id: int, success: bool, email: str = "",
     status = "success" if success else "failed"
 
     with get_db() as conn:
-        # 获取预留时的扣减数量 (存在 error_msg 字段中作为临时存储)
         row = conn.execute(
-            "SELECT code, error_msg FROM executions WHERE id=?", (execution_id,)
+            "SELECT code, reserved_amount FROM executions WHERE id=?", (execution_id,)
         ).fetchone()
 
         # 更新执行记录
@@ -144,13 +143,13 @@ def complete_use(execution_id: int, success: bool, email: str = "",
             "WHERE id=?",
             (status, email, error_msg, result_json, now, execution_id),
         )
-        # 失败时回退多余额度
+        # 失败时回退额度
+        # 新注册(reserved>=2): 保留1次消耗(邮箱已创建), 退还其余
+        # 已有账号(reserved=1): 全额退还, 净消耗0
         if not success and row:
-            try:
-                reserved_amount = int(row["error_msg"] or "1")
-            except (ValueError, TypeError):
-                reserved_amount = 1
-            refund = max(reserved_amount - 1, 0)  # 保留1, 退还多余的
+            reserved_amount = row["reserved_amount"] or 1
+            failure_cost = 1 if reserved_amount >= 2 else 0
+            refund = reserved_amount - failure_cost
             if refund > 0:
                 conn.execute(
                     "UPDATE codes SET used_count = MAX(used_count - ?, 0) WHERE code=?",
