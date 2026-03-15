@@ -10,6 +10,7 @@ Playwright 浏览器处理 Stripe hCaptcha 挑战
 """
 import json
 import logging
+import os
 import time
 
 logger = logging.getLogger(__name__)
@@ -294,8 +295,11 @@ class BrowserChallengeSolver:
         with open(html_file, "w") as f:
             f.write(hcaptcha_html)
 
+        chrome_binary = self._find_chrome_binary()
+
         options = uc.ChromeOptions()
-        options.binary_location = "/home/makai/.local/chrome/opt/google/chrome/google-chrome"
+        if chrome_binary:
+            options.binary_location = chrome_binary
         if self.headless:
             options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
@@ -311,11 +315,10 @@ class BrowserChallengeSolver:
 
         driver = None
         try:
-            driver = uc.Chrome(
-                options=options,
-                browser_executable_path="/home/makai/.local/chrome/opt/google/chrome/google-chrome",
-                use_subprocess=True,
-            )
+            uc_kwargs = {"options": options, "use_subprocess": True}
+            if chrome_binary:
+                uc_kwargs["browser_executable_path"] = chrome_binary
+            driver = uc.Chrome(**uc_kwargs)
             driver.set_page_load_timeout(30)
 
             # 先访问 js.stripe.com 获得正确的域上下文
@@ -416,6 +419,29 @@ class BrowserChallengeSolver:
                     driver.quit()
                 except Exception:
                     pass
+
+    @staticmethod
+    def _find_chrome_binary() -> str:
+        """查找可用的 Chrome/Chromium 二进制文件"""
+        import glob as gl
+        # Playwright 自带 Chrome (优先)
+        pw_chrome = os.path.expanduser("~/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome")
+        if os.path.isfile(pw_chrome):
+            return pw_chrome
+        # 系统 Chrome
+        for path in [
+            "/opt/google/chrome/chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium-browser",
+            "/usr/bin/chromium",
+        ]:
+            if os.path.isfile(path):
+                return path
+        # Playwright 其他版本
+        pw_chromes = gl.glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome"))
+        if pw_chromes:
+            return sorted(pw_chromes)[-1]
+        return None  # 让 undetected-chromedriver 自行查找
 
     def solve(self, pi_client_secret: str, timeout: int = 60) -> dict:
         """
