@@ -504,14 +504,39 @@ class AuthFlow:
         self, session_token: str, access_token: str, device_id: str
     ) -> AuthResult:
         """使用已有凭证（跳过注册）"""
-        self.result.access_token = access_token
         self.result.device_id = device_id or str(uuid.uuid4())
+        self.session.cookies.set("oai-did", self.result.device_id, domain=".chatgpt.com")
 
-        # 如果没有 session_token, 尝试通过 access_token 获取
-        if not session_token and access_token:
+        # 如果有 session_token, 用它刷新 access_token (旧 access_token 可能已过期)
+        if session_token:
+            self.session.cookies.set(
+                "__Secure-next-auth.session-token",
+                session_token,
+                domain=".chatgpt.com",
+            )
+            logger.info("使用 session_token 刷新 access_token...")
+            try:
+                headers = self._common_headers("https://chatgpt.com/")
+                resp = self.session.get(
+                    "https://chatgpt.com/api/auth/session",
+                    headers=headers,
+                    timeout=30,
+                )
+                new_access_token = resp.json().get("accessToken", "")
+                new_session_token = self.session.cookies.get("__Secure-next-auth.session-token", "")
+                if new_access_token:
+                    access_token = new_access_token
+                    logger.info("access_token 刷新成功")
+                else:
+                    logger.warning(f"access_token 刷新失败 (status={resp.status_code}), 使用原 token")
+                if new_session_token:
+                    session_token = new_session_token
+            except Exception as e:
+                logger.warning(f"刷新 access_token 失败: {e}, 使用原 token")
+        elif access_token:
+            # 没有 session_token, 尝试通过 access_token 获取
             logger.info("未提供 session_token, 尝试通过 access_token 获取...")
             try:
-                self.session.cookies.set("oai-did", self.result.device_id, domain=".chatgpt.com")
                 headers = self._common_headers("https://chatgpt.com/")
                 headers["Authorization"] = f"Bearer {access_token}"
                 resp = self.session.get(
@@ -527,14 +552,13 @@ class AuthFlow:
             except Exception as e:
                 logger.warning(f"获取 session_token 失败: {e}")
 
+        self.result.access_token = access_token
         self.result.session_token = session_token
-        # 设置 cookie
         if session_token:
             self.session.cookies.set(
                 "__Secure-next-auth.session-token",
                 session_token,
                 domain=".chatgpt.com",
             )
-        self.session.cookies.set("oai-did", self.result.device_id, domain=".chatgpt.com")
         logger.info("使用已有凭证初始化完成")
         return self.result
