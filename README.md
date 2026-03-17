@@ -253,3 +253,6 @@ sudo bash deploy.sh
 
 MIT
 
+📩 Disclaimer | 免责声明
+本工具仅供学习和研究使用，使用本工具所产生的任何后果由使用者自行承担。
+This tool is only for learning and research purposes, and any consequences arising from the use of this tool are borne by the user.
